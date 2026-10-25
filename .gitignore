@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env*
+!.env.example
+playwright-report/
+test-results/
+!.env.production
+# Original supplied brief remains in the workspace, outside the public source package.
+docs/PROJECT_BRIEF.docx
+.wrangler/
