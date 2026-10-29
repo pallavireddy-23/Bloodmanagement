@@ -357,6 +357,82 @@ function render() {
 function metric(label, value, detail, accent = "") {
   return `<article class="metric ${accent}"><span>${label}</span><strong>${value}</strong><small>${detail}</small></article>`;
 }
+
+/* ---------- Analytics chart (Donations / Requests / New donors) ---------- */
+let chartMetric = "donations",
+  chartRange = "6m";
+
+function chartBuckets(range) {
+  const now = new Date(),
+    out = [];
+  if (range === "6m") {
+    for (let i = 5; i >= 0; i--) {
+      const s = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const e = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      out.push({ s, e, label: s.toLocaleDateString("en-IN", { month: "short" }) });
+    }
+  } else {
+    const n = range === "7d" ? 7 : 30;
+    for (let i = n - 1; i >= 0; i--) {
+      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 1);
+      out.push({
+        s,
+        e,
+        label: s.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+      });
+    }
+  }
+  return out;
+}
+
+function chartSvg() {
+  const source = {
+    donations: data.donations.map((x) => x.collected_at),
+    requests: data.requests.map((x) => x.created_at),
+    donors: data.donors.map((x) => x.created_at),
+  }[chartMetric];
+  const buckets = chartBuckets(chartRange).map((b) => ({
+    ...b,
+    value: source.filter((d) => new Date(d) >= b.s && new Date(d) < b.e).length,
+  }));
+  const max = Math.max(...buckets.map((b) => b.value), 0);
+  const top = max <= 4 ? 4 : Math.ceil(max / 4) * 4;
+  const W = 640, H = 240, L = 34, R = 10, T = 12, B = 30;
+  const iw = W - L - R, ih = H - T - B;
+  const slot = iw / buckets.length;
+  const bw = Math.min(40, slot * 0.6);
+  const skip = buckets.length > 7 ? 5 : 1;
+  const grid = [0, 1, 2, 3, 4]
+    .map((i) => {
+      const v = (top / 4) * i, y = T + ih - (v / top) * ih;
+      return `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#ecebed"/><text x="${L - 8}" y="${y + 3}" text-anchor="end" font-size="9" fill="#9a959d">${v}</text>`;
+    })
+    .join("");
+  const bars = buckets
+    .map((b, i) => {
+      const h = (b.value / top) * ih,
+        x = L + i * slot + (slot - bw) / 2,
+        y = T + ih - h;
+      return `<g><rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, b.value ? 2 : 0)}" rx="4" fill="#bb3048" opacity="${b.value ? 0.9 : 0.15}"><title>${esc(b.label)}: ${b.value}</title></rect>${b.value ? `<text x="${x + bw / 2}" y="${y - 5}" text-anchor="middle" font-size="9" fill="#77767e">${b.value}</text>` : ""}${i % skip === 0 ? `<text x="${x + bw / 2}" y="${H - 10}" text-anchor="middle" font-size="9" fill="#9a959d">${esc(b.label)}</text>` : ""}</g>`;
+    })
+    .join("");
+  const total = buckets.reduce((s, b) => s + b.value, 0);
+  return { total, svg: `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${chartMetric} over time, ${total} total">${grid}${bars}</svg>` };
+}
+
+function analyticsCard() {
+  const metrics = [["donations", "Donations"], ["requests", "Requests"], ["donors", "New donors"]];
+  const ranges = [["7d", "7 days"], ["30d", "30 days"], ["6m", "6 months"]];
+  const { total, svg } = chartSvg();
+  const seg = (items, cur, action) =>
+    `<div class="seg">${items
+      .map(([v, l]) => `<button class="${cur === v ? "on" : ""}" data-action="${action}" data-id="${v}">${l}</button>`)
+      .join("")}</div>`;
+  return `<section class="card analytics"><div class="section-heading"><div><span class="eyebrow">ANALYTICS</span><h2>${metrics.find((m) => m[0] === chartMetric)[1]} · ${total} in period</h2></div><div class="chart-controls">${seg(metrics, chartMetric, "chart-metric")}${seg(ranges, chartRange, "chart-range")}</div></div>${svg}</section>`;
+}
+/* ------------------------------------------------------------------------ */
+
 function dashboard() {
   if (!staff())
     return `<div class="metrics three">${metric("Your requests", data.requests.length, "All submitted requests")}${metric("Awaiting action", data.requests.filter((r) => ["pending", "approved"].includes(r.status)).length, "Pending or approved")}${metric("Completed", data.requests.filter((r) => r.status === "issued").length, "Units issued")}</div>${requestTable(data.requests)}`;
@@ -367,7 +443,7 @@ function dashboard() {
       (u) => available(u) && new Date(u.expires_at) < new Date(day(window)),
     )
     .sort((a, b) => new Date(a.expires_at) - new Date(b.expires_at));
-  return `<div class="metrics">${metric("Available units", units.filter(available).length, "Released, unexpired & unreserved", "red")}${metric("Pending requests", data.requests.filter((r) => r.status === "pending").length, "Waiting for staff approval")}${metric("Expiring soon", expiring.length, `Available · next ${window} days`)}${metric("Units issued", data.allocations.filter((a) => a.status === "issued").length, "Recorded in allocation history")}</div><div class="dashboard-grid"><section class="card stock-card"><div class="section-heading"><div><span class="eyebrow">LIVE INVENTORY</span><h2>Small units. Big impact.</h2></div><span class="pill">PRBC</span></div><div class="blood-groups">${groups
+  return `<div class="metrics">${metric("Available units", units.filter(available).length, "Released, unexpired & unreserved", "red")}${metric("Pending requests", data.requests.filter((r) => r.status === "pending").length, "Waiting for staff approval")}${metric("Expiring soon", expiring.length, `Available · next ${window} days`)}${metric("Units issued", data.allocations.filter((a) => a.status === "issued").length, "Recorded in allocation history")}</div>${analyticsCard()}<div class="dashboard-grid"><section class="card stock-card"><div class="section-heading"><div><span class="eyebrow">LIVE INVENTORY</span><h2>Small units. Big impact.</h2></div><span class="pill">PRBC</span></div><div class="blood-groups">${groups
     .map((g) => {
       const n = units.filter((u) => u.blood_group === g && available(u)).length,
         t = data.stock_thresholds.find(
@@ -649,6 +725,14 @@ const actions = {
     render();
   },
   refresh: () => load(),
+  "chart-metric": (id) => {
+    chartMetric = id;
+    render();
+  },
+  "chart-range": (id) => {
+    chartRange = id;
+    render();
+  },
   logout: async () => {
     if (mode === "live" && client) {
       await client.rpc("end_activity");
