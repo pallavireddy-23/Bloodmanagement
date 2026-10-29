@@ -1324,3 +1324,47 @@ dialog::backdrop {
 
 .nav-item>span { display:flex; align-items:center; }
 @media(max-width:760px) { .topbar>span { display:none; } .topbar>div { width:100%; justify-content:space-between; } .topbar button { margin-left:2px; } }
+
+/* ---------- Analytics chart ---------- */
+.analytics {
+  margin-bottom: 24px;
+}
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.chart-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.seg {
+  display: inline-flex;
+  background: #f4f2f3;
+  border-radius: 8px;
+  padding: 3px;
+}
+.seg button {
+  font-size: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #77767e;
+  font-weight: 500;
+}
+.seg button.on {
+  background: #fff;
+  color: var(--red);
+  font-weight: 600;
+  box-shadow: 0 1px 3px #0001;
+}
+@media (max-width: 760px) {
+  .analytics .section-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .chart-controls {
+    justify-content: flex-start;
+  }
+}
